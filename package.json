@@ -1,0 +1,36 @@
+{
+  "name": "irlquest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite --host 127.0.0.1 --port 5174",
+    "dev:api": "node --watch server/index.mjs",
+    "build": "tsc --noEmit && vite build",
+    "start": "node server/index.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.mjs",
+    "test:contract": "pytest tests/direct/test_irlquest_verifier.py -v",
+    "lint:contract": "genvm-lint check contracts/IRLQuestVerifier.py --json",
+    "deploy:bradbury": "node scripts/deploy-bradbury.mjs",
+    "check": "npm run build && npm test && npm run lint:contract"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.3",
+    "dotenv": "17.4.2",
+    "express": "5.1.0",
+    "genlayer-js": "1.1.8",
+    "lucide-react": "0.468.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/node": "22.10.2",
+    "@types/react": "19.0.1",
+    "@types/react-dom": "19.0.2",
+    "@vitejs/plugin-react": "5.0.0",
+    "typescript": "5.9.3",
+    "vite": "6.4.3"
+  }
+}
