@@ -163,7 +163,7 @@ test("active hosted quests keep simple tasks and proven quest variety", async ()
         "..",
         "supabase",
         "migrations",
-        "20260814164818_correct_legacy_verdicts_and_closeup_state.sql",
+        "20260814164818_set_closeup_testing_state.sql",
       ),
       "utf8",
     ),
@@ -199,7 +199,7 @@ test("active hosted quests keep simple tasks and proven quest variety", async ()
   assert.match(migration, /limit greatest\(0, 3 - v_daily_count\)/);
 });
 
-test("production-only identifiers stay redacted while the consensus migration revokes unproven XP", async () => {
+test("quest-state and consensus migrations remain narrowly scoped", async () => {
   const [correctionMigration, consensusMigration] = await Promise.all([
     readFile(
       join(
@@ -207,7 +207,7 @@ test("production-only identifiers stay redacted while the consensus migration re
         "..",
         "supabase",
         "migrations",
-        "20260814164818_correct_legacy_verdicts_and_closeup_state.sql",
+        "20260814164818_set_closeup_testing_state.sql",
       ),
       "utf8",
     ),
@@ -223,7 +223,6 @@ test("production-only identifiers stay redacted while the consensus migration re
     ),
   ]);
 
-  assert.match(correctionMigration, /old transaction identifiers are intentionally not retained/);
   assert.doesNotMatch(correctionMigration, /0x[0-9a-f]{64}/i);
   assert.doesNotMatch(correctionMigration, /public\.submissions/);
   assert.doesNotMatch(correctionMigration, /public\.xp_events/);

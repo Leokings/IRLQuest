@@ -16,9 +16,7 @@ IRLQuest turns ordinary life into short, proof-backed daily missions. This is in
 - Vercel production deployment at [irlquest.xyz](https://irlquest.xyz)
 - Desktop and mobile layouts, verified down to a 390 px viewport
 
-Production requires a Google-authenticated explorer. Local development still starts with a demo explorer so the full vertical slice can be tested without cloud credentials. IRLQuest uses Studionet as its sole GenLayer network. The verifier is deployed at [`0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4`](https://explorer-studio.genlayer.com/address/0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4), and its byte-for-byte verified deployment details are in [`deployments/studionet.json`](./deployments/studionet.json).
-
-The latest production build and independently finalized proof are documented in [`docs/PRODUCTION_EVIDENCE.md`](./docs/PRODUCTION_EVIDENCE.md). The record includes the public transaction, consensus votes, content hash, XP result, and deployed build identifiers without exposing the private photo or a signed Storage URL.
+Production requires a Google-authenticated explorer. IRLQuest uses GenLayer Studionet for production verification through [`0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4`](https://explorer-studio.genlayer.com/address/0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4). See the [`deployment record`](./deployments/studionet.json) and [`production evidence`](./docs/PRODUCTION_EVIDENCE.md).
 
 Supabase is the permanent application system of record for accounts, quests, submissions, and XP. Studionet itself has temporary persistence and can be reset by GenLayer, so its contract and result state must not be treated as permanent storage.
 
@@ -95,6 +93,6 @@ Gallery fallback is development-only by default. `VITE_ALLOW_GALLERY_FALLBACK=tr
 
 The live deployment uses Google OAuth through Supabase, `https://irlquest.xyz` as its site URL, and the Supabase callback at `https://auovgyyatbxdfynbbfth.supabase.co/auth/v1/callback`. The Studionet relayer key is stored only as a Supabase Edge Function secret and is never exposed to the browser or committed to this repository.
 
-Production submits every proof with `leaderOnly: false`. XP is awarded only after GenLayer reports `ACCEPTED` or `FINALIZED`, the receipt records a majority `AGREE` vote from at least three validators, execution succeeds, and the onchain result is readable. Validator timeout, disagreement, leader-only, local-demo, and unverifiable legacy results remain retryable and cannot create XP; Postgres enforces the same rule as a second boundary.
+Production submits every proof with `leaderOnly: false`. XP is awarded only after GenLayer reports `ACCEPTED` or `FINALIZED`, at least three validators agree, execution succeeds, and the onchain result is readable. Other results remain retryable and cannot create XP.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for boundaries and the production hardening list.
