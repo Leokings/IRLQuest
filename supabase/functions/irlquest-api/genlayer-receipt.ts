@@ -25,40 +25,7 @@ const TERMINAL_STATUSES = new Set([
 ]);
 
 const TIMEOUT_STATUSES = new Set(["VALIDATORS_TIMEOUT", "LEADER_TIMEOUT"]);
-
-const DECISION_KEYS = new Set([
-  "challenge_satisfied",
-  "evidence_clear",
-  "quest_satisfied",
-  "reason_code",
-  "safe",
-  "verdict",
-]);
-
-const DECISION_SUMMARIES: Record<string, string> = {
-  PASS: "Proof accepted.",
-  QUEST_NOT_MET: "The quest item wasn't clearly shown.",
-  CHALLENGE_NOT_MET: "The live gesture wasn't visible.",
-  UNCLEAR: "Couldn't verify this one.",
-  UNSAFE: "This photo couldn't be accepted.",
-};
-
-type LeaderOutputDecoder = {
-  fromRlp(value: string): unknown;
-  fromHex(value: string): Uint8Array;
-  decodeCalldata(value: Uint8Array): unknown;
-};
-
-export type GenLayerLeaderVerdict = {
-  verdict: "PASS" | "FAIL";
-  questSatisfied: boolean;
-  challengeSatisfied: boolean;
-  evidenceClear: boolean;
-  safe: boolean;
-  reasonCode: string;
-  summary: string;
-  verifier: "genlayer-leader";
-};
+const CONSENSUS_STATUSES = new Set(["ACCEPTED", "FINALIZED"]);
 
 type GenLayerResultClient = {
   readContract(args: Record<string, unknown>): Promise<unknown>;
@@ -148,79 +115,31 @@ export function isGenLayerTimeoutStatus(statusName: string) {
   return TIMEOUT_STATUSES.has(statusName);
 }
 
-function recordFromCalldata(value: unknown) {
-  if (value instanceof Map) {
-    return Object.fromEntries(value) as Record<string, unknown>;
-  }
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function canonicalReason(decision: Record<string, unknown>) {
-  if (decision.safe === false) return "UNSAFE";
-  if (decision.evidence_clear === false) return "UNCLEAR";
-  if (decision.quest_satisfied === false) return "QUEST_NOT_MET";
-  if (decision.challenge_satisfied === false) return "CHALLENGE_NOT_MET";
-  return "PASS";
-}
-
-export function leaderOnlyTimeoutVerdict(
-  receipt: unknown,
-  decoder: LeaderOutputDecoder,
-): GenLayerLeaderVerdict | null {
-  if (!receipt || typeof receipt !== "object") return null;
+export function isXpEligibleConsensusReceipt(receipt: unknown) {
+  if (!receipt || typeof receipt !== "object") return false;
   const transaction = receipt as Record<string, unknown>;
-  if (!isGenLayerTimeoutStatus(genLayerStatusName(receipt))) return null;
+  if (!CONSENSUS_STATUSES.has(genLayerStatusName(receipt))) return false;
 
   const txData = transaction.txDataDecoded ?? transaction.tx_data_decoded;
-  if (!txData || typeof txData !== "object") return null;
-  if ((txData as Record<string, unknown>).leaderOnly !== true) return null;
+  if (!txData || typeof txData !== "object") return false;
+  if ((txData as Record<string, unknown>).leaderOnly !== false) return false;
 
   const executionName = String(
     transaction.txExecutionResultName ?? transaction.tx_execution_result_name ?? "",
   ).toUpperCase();
   const executionCode = transaction.txExecutionResult ?? transaction.tx_execution_result;
   if (executionName !== "FINISHED_WITH_RETURN" && executionCode !== 1 && executionCode !== "1") {
-    return null;
+    return false;
   }
 
-  const encoded = transaction.eqBlocksOutputs ?? transaction.eq_blocks_outputs;
-  if (typeof encoded !== "string" || !/^0x[0-9a-f]+$/i.test(encoded)) return null;
+  const resultName = String(transaction.resultName ?? transaction.result_name ?? "").toUpperCase();
+  if (resultName !== "AGREE") return false;
 
-  try {
-    const envelope = decoder.fromRlp(encoded);
-    if (!Array.isArray(envelope) || typeof envelope[0] !== "string") return null;
-    const resultBytes = decoder.fromHex(envelope[0]);
-    if (!(resultBytes instanceof Uint8Array) || resultBytes.length < 2 || resultBytes[0] !== 0) {
-      return null;
-    }
-
-    const decision = recordFromCalldata(decoder.decodeCalldata(resultBytes.slice(1)));
-    if (!decision) return null;
-    const keys = Object.keys(decision);
-    if (keys.length !== DECISION_KEYS.size || keys.some((key) => !DECISION_KEYS.has(key))) {
-      return null;
-    }
-    for (const key of ["quest_satisfied", "challenge_satisfied", "evidence_clear", "safe"]) {
-      if (typeof decision[key] !== "boolean") return null;
-    }
-
-    const reasonCode = canonicalReason(decision);
-    if (decision.reason_code !== reasonCode) return null;
-    const verdict = reasonCode === "PASS" ? "PASS" : "FAIL";
-    if (decision.verdict !== verdict) return null;
-
-    return {
-      verdict,
-      questSatisfied: decision.quest_satisfied as boolean,
-      challengeSatisfied: decision.challenge_satisfied as boolean,
-      evidenceClear: decision.evidence_clear as boolean,
-      safe: decision.safe as boolean,
-      reasonCode,
-      summary: DECISION_SUMMARIES[reasonCode],
-      verifier: "genlayer-leader",
-    };
-  } catch {
-    return null;
-  }
+  const lastRound = transaction.lastRound ?? transaction.last_round;
+  if (!lastRound || typeof lastRound !== "object") return false;
+  const voteNames = (lastRound as Record<string, unknown>).validatorVotesName
+    ?? (lastRound as Record<string, unknown>).validator_votes_name;
+  if (!Array.isArray(voteNames) || voteNames.length < 3) return false;
+  const agreeVotes = voteNames.filter((vote) => String(vote).toUpperCase() === "AGREE").length;
+  return agreeVotes > voteNames.length / 2;
 }
