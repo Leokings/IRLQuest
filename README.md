@@ -39,7 +39,7 @@ To run against Supabase locally, put the three public `VITE_SUPABASE_*` values f
 
 - **Frontend:** Vercel static Vite deployment
 - **Authentication:** Supabase Auth with Google OAuth
-- **Database:** Supabase Postgres with RLS on every app table
+- **Database:** Supabase Postgres with RLS on every browser-exposed app table; operational tables live in a non-exposed `private` schema
 - **Evidence:** private `quest-evidence` Supabase Storage bucket (JPEG/PNG/WebP, 8 MB maximum)
 - **Backend:** authenticated `irlquest-api` Supabase Edge Function
 - **Verdict:** GenLayer intelligent-contract verification on Studionet in production, with an explicitly labelled local demo verifier for development

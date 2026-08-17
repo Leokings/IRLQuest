@@ -58,7 +58,7 @@ submissions
 xp_events
 ```
 
-Every table has RLS enabled. Users can read only their own profile, assignments, sessions, submissions, and XP; quest definitions are public read-only data. The browser has no direct write policy for evidence. The authenticated Edge Function performs validated uploads and invokes narrowly scoped transaction functions.
+Every browser-exposed app table has RLS enabled. Users can read only their own profile, assignments, sessions, submissions, and XP; quest definitions are public read-only data. Operational tables are isolated in a non-exposed `private` schema and are available only to the service role. The browser has no direct write policy for evidence. The authenticated Edge Function performs validated uploads and invokes narrowly scoped transaction functions.
 
 `quest_versions` is immutable. Every assignment points to the exact title, XP value, prompt, and verification rules that were active when it was issued. `xp_events.submission_id` is unique, so retries or duplicated callbacks cannot award XP twice. Media lives only in the private `quest-evidence` bucket, never in SQL or public storage.
 
