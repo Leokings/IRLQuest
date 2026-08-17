@@ -108,7 +108,7 @@ test("the Edge Function and Postgres both enforce the consensus XP gate", async 
         "..",
         "supabase",
         "migrations",
-        "20260817122818_require_validator_consensus_for_xp.sql",
+        "20260817123511_require_validator_consensus_for_xp.sql",
       ),
       "utf8",
     ),

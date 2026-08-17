@@ -18,6 +18,8 @@ IRLQuest turns ordinary life into short, proof-backed daily missions. This is in
 
 Production requires a Google-authenticated explorer. Local development still starts with a demo explorer so the full vertical slice can be tested without cloud credentials. IRLQuest uses Studionet as its sole GenLayer network. The verifier is deployed at [`0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4`](https://explorer-studio.genlayer.com/address/0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4), and its byte-for-byte verified deployment details are in [`deployments/studionet.json`](./deployments/studionet.json).
 
+The latest production build and independently finalized proof are documented in [`docs/PRODUCTION_EVIDENCE.md`](./docs/PRODUCTION_EVIDENCE.md). The record includes the public transaction, consensus votes, content hash, XP result, and deployed build identifiers without exposing the private photo or a signed Storage URL.
+
 Supabase is the permanent application system of record for accounts, quests, submissions, and XP. Studionet itself has temporary persistence and can be reset by GenLayer, so its contract and result state must not be treated as permanent storage.
 
 ## Run it

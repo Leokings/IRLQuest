@@ -12,9 +12,39 @@
   "deployedSourceSha256": "307bae204da3769effad85d3ff387969b0510addf68f21e564ff88b1eea890ac",
   "sourceByteForByteMatch": true,
   "initialResultCount": 0,
-  "verifiedResultCount": 1,
+  "verifiedResultCount": 2,
   "explorerContract": "https://explorer-studio.genlayer.com/address/0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4",
   "explorerDeploymentTransaction": "https://explorer-studio.genlayer.com/tx/0xcaaf008dc68eb0654e4f336fdf96dc6c9d0ef114012a243c72f3aaad4c11c357",
+  "productionBuild": {
+    "url": "https://irlquest.xyz",
+    "sourceCommit": "c9e3dcaaf49b543da0d017b3975592b22cab0656",
+    "vercelDeploymentId": "dpl_9JBrQedaDPvqgFUq83YguwhdsGsp",
+    "status": "READY"
+  },
+  "latestVerifiedProof": {
+    "submissionId": "2efc035a-8cb1-419f-8c69-b3575f1d39f0",
+    "questId": "quest_red_find",
+    "questVersionId": "quest_red_find_v1",
+    "questTitle": "Red find",
+    "transaction": "0x480e8fba21030425ebd125fcb2a40d9e64e86f3ce0e6508e057420fb8f3b1e95",
+    "explorerTransaction": "https://explorer-studio.genlayer.com/tx/0x480e8fba21030425ebd125fcb2a40d9e64e86f3ce0e6508e057420fb8f3b1e95",
+    "transactionStatus": "FINALIZED",
+    "consensusResult": "MAJORITY_AGREE",
+    "leaderOnly": false,
+    "executionResult": "SUCCESS",
+    "validatorVotes": {
+      "agree": 3,
+      "disagree": 0,
+      "idle": 2,
+      "total": 5
+    },
+    "verdict": "PASS",
+    "reasonCode": "PASS",
+    "evidenceSha256": "56b992fafa753ce06efbdfa4532f3902afb82c738a28a6b1b037391edf5bb64a",
+    "xpAwarded": 55,
+    "submittedAt": "2026-08-17T13:45:42.174532Z",
+    "verifiedAt": "2026-08-17T13:46:17.315537Z"
+  },
   "deployedAt": "2026-08-17T12:56:09.443717+00:00",
-  "verifiedAt": "2026-08-17T13:10:37.5929384Z"
+  "verifiedAt": "2026-08-17T13:51:37.1091460Z"
 }
