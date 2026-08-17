@@ -1,0 +1,20 @@
+{
+  "schema": "irlquest/deployment/v1",
+  "network": "studionet",
+  "chainId": 61999,
+  "status": "FINALIZED",
+  "contractAddress": "0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4",
+  "deploymentTransaction": "0xcaaf008dc68eb0654e4f336fdf96dc6c9d0ef114012a243c72f3aaad4c11c357",
+  "deployer": "0x797d3B25fB2cCA0Ff93F60df1910267f3822D655",
+  "owner": "0x7f07ab481dd8b57085d7c9e0c97c6126ee7faaec",
+  "policyVersion": "irlquest.photo-proof.v2",
+  "sourceSha256": "307bae204da3769effad85d3ff387969b0510addf68f21e564ff88b1eea890ac",
+  "deployedSourceSha256": "307bae204da3769effad85d3ff387969b0510addf68f21e564ff88b1eea890ac",
+  "sourceByteForByteMatch": true,
+  "initialResultCount": 0,
+  "verifiedResultCount": 1,
+  "explorerContract": "https://explorer-studio.genlayer.com/address/0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4",
+  "explorerDeploymentTransaction": "https://explorer-studio.genlayer.com/tx/0xcaaf008dc68eb0654e4f336fdf96dc6c9d0ef114012a243c72f3aaad4c11c357",
+  "deployedAt": "2026-08-17T12:56:09.443717+00:00",
+  "verifiedAt": "2026-08-17T13:10:37.5929384Z"
+}

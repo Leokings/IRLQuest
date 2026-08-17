@@ -12,7 +12,7 @@
     "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.mjs",
     "test:contract": "pytest tests/direct/test_irlquest_verifier.py -v",
     "lint:contract": "genvm-lint check contracts/IRLQuestVerifier.py --json",
-    "deploy:bradbury": "node scripts/deploy-bradbury.mjs",
+    "deploy:studionet": "node scripts/deploy-studionet.mjs",
     "check": "npm run build && npm test && npm run lint:contract"
   },
   "dependencies": {

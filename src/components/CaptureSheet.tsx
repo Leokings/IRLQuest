@@ -211,7 +211,7 @@ export default function CaptureSheet({
   }
 
   async function pollForVerdict(id: string) {
-    for (let attempt = 0; attempt < 70; attempt += 1) {
+    for (let attempt = 0; attempt < 125; attempt += 1) {
       await new Promise((resolve) => window.setTimeout(resolve, 900));
       if (!mountedRef.current) return;
       const next = await loadSubmission(id);

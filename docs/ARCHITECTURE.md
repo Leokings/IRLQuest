@@ -83,7 +83,7 @@ Before attaching financial value or opening a broad public beta:
 
 1. Add per-user/device/IP rate limits, storage quotas, and lifecycle deletion.
 2. Add pre-display moderation, reports, appeals, and explicit evidence-retention consent.
-3. Exercise the live Bradbury path end-to-end with representative real images.
-4. Keep the relayer key only in Supabase secrets and fund it with a bounded testnet balance.
+3. Exercise the live Studionet path end-to-end with representative real images and monitor for network resets.
+4. Keep the Studionet relayer key only in Supabase secrets and maintain a tested contract redeployment procedure.
 5. Instrument verification latency, disagreement, rejection/appeal rate, and cost per accepted quest.
 6. Add native app attestation before making XP transferable or financially valuable.

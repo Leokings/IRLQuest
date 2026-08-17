@@ -121,19 +121,48 @@ export function isXpEligibleConsensusReceipt(receipt: unknown) {
   if (!CONSENSUS_STATUSES.has(genLayerStatusName(receipt))) return false;
 
   const txData = transaction.txDataDecoded ?? transaction.tx_data_decoded;
-  if (!txData || typeof txData !== "object") return false;
-  if ((txData as Record<string, unknown>).leaderOnly !== false) return false;
+  const txDataRecord = txData && typeof txData === "object"
+    ? txData as Record<string, unknown>
+    : null;
+  const leaderOnly = txDataRecord?.leaderOnly
+    ?? txDataRecord?.leader_only
+    ?? transaction.leaderOnly
+    ?? transaction.leader_only;
+  if (leaderOnly !== false) return false;
 
   const executionName = String(
     transaction.txExecutionResultName ?? transaction.tx_execution_result_name ?? "",
   ).toUpperCase();
   const executionCode = transaction.txExecutionResult ?? transaction.tx_execution_result;
-  if (executionName !== "FINISHED_WITH_RETURN" && executionCode !== 1 && executionCode !== "1") {
-    return false;
+  const hasTopLevelExecution = Boolean(executionName) || executionCode !== undefined;
+  if (hasTopLevelExecution) {
+    if (executionName !== "FINISHED_WITH_RETURN" && executionCode !== 1 && executionCode !== "1") {
+      return false;
+    }
+  } else {
+    const consensusData = transaction.consensusData ?? transaction.consensus_data;
+    if (!consensusData || typeof consensusData !== "object") return false;
+    const leaderReceipts = (consensusData as Record<string, unknown>).leaderReceipt
+      ?? (consensusData as Record<string, unknown>).leader_receipt;
+    if (!Array.isArray(leaderReceipts)) return false;
+    const leaderReceipt = leaderReceipts.find((candidate) => {
+      if (!candidate || typeof candidate !== "object") return false;
+      return String((candidate as Record<string, unknown>).mode ?? "").toLowerCase() === "leader";
+    });
+    if (!leaderReceipt || typeof leaderReceipt !== "object") return false;
+    const leaderRecord = leaderReceipt as Record<string, unknown>;
+    const executionResult = String(
+      leaderRecord.executionResult ?? leaderRecord.execution_result ?? "",
+    ).toUpperCase();
+    const leaderResult = leaderRecord.result;
+    const resultStatus = leaderResult && typeof leaderResult === "object"
+      ? String((leaderResult as Record<string, unknown>).status ?? "").toUpperCase()
+      : "";
+    if (executionResult !== "SUCCESS" || resultStatus !== "RETURN") return false;
   }
 
   const resultName = String(transaction.resultName ?? transaction.result_name ?? "").toUpperCase();
-  if (resultName !== "AGREE") return false;
+  if (resultName !== "AGREE" && resultName !== "MAJORITY_AGREE") return false;
 
   const lastRound = transaction.lastRound ?? transaction.last_round;
   if (!lastRound || typeof lastRound !== "object") return false;

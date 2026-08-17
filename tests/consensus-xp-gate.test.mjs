@@ -21,6 +21,28 @@ function consensusReceipt(overrides = {}) {
   };
 }
 
+function studionetConsensusReceipt(overrides = {}) {
+  return {
+    status: 7,
+    statusName: "FINALIZED",
+    leader_only: false,
+    result_name: "MAJORITY_AGREE",
+    last_round: {
+      validator_votes_name: ["AGREE", "AGREE", "DISAGREE", "IDLE", "AGREE"],
+    },
+    consensus_data: {
+      leader_receipt: [
+        {
+          mode: "leader",
+          execution_result: "SUCCESS",
+          result: { status: "return" },
+        },
+      ],
+    },
+    ...overrides,
+  };
+}
+
 test("validator timeout cannot award XP", () => {
   const receipt = consensusReceipt({ statusName: "VALIDATORS_TIMEOUT" });
   assert.equal(isXpEligibleConsensusReceipt(receipt), false);
@@ -39,6 +61,39 @@ test("validator disagreement cannot award XP", () => {
 test("leader-only execution cannot award XP even after finalization", () => {
   const receipt = consensusReceipt({ txDataDecoded: { leaderOnly: true } });
   assert.equal(isXpEligibleConsensusReceipt(receipt), false);
+});
+
+test("a finalized Studionet majority receipt can award XP", () => {
+  assert.equal(isXpEligibleConsensusReceipt(studionetConsensusReceipt()), true);
+});
+
+test("Studionet receipts cannot award XP without consensus and successful leader execution", () => {
+  assert.equal(
+    isXpEligibleConsensusReceipt(studionetConsensusReceipt({ leader_only: true })),
+    false,
+  );
+  assert.equal(
+    isXpEligibleConsensusReceipt(studionetConsensusReceipt({ result_name: "MAJORITY_DISAGREE" })),
+    false,
+  );
+  assert.equal(
+    isXpEligibleConsensusReceipt(studionetConsensusReceipt({
+      last_round: { validator_votes_name: ["AGREE", "DISAGREE", "DISAGREE"] },
+    })),
+    false,
+  );
+  assert.equal(
+    isXpEligibleConsensusReceipt(studionetConsensusReceipt({
+      consensus_data: {
+        leader_receipt: [{
+          mode: "leader",
+          execution_result: "ERROR",
+          result: { status: "error" },
+        }],
+      },
+    })),
+    false,
+  );
 });
 
 test("the Edge Function and Postgres both enforce the consensus XP gate", async () => {

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createClient } from "genlayer-js";
-import { testnetBradbury } from "genlayer-js/chains";
+import { studionet } from "genlayer-js/chains";
 import {
   GenLayerResultPendingError,
   genLayerStatusName,
@@ -16,20 +16,28 @@ import {
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 
-test("Bradbury verification uses Bradbury's chain configuration", async () => {
-  const endpoint = "https://rpc-bradbury.genlayer.com";
-  const client = createClient({ chain: testnetBradbury, endpoint });
+test("Studionet verification uses Studionet's chain configuration", async () => {
+  const endpoint = "https://studio.genlayer.com/api";
+  const client = createClient({ chain: studionet, endpoint });
 
-  assert.equal(client.chain.id, 4221);
-  assert.equal(client.chain.isStudio, false);
-  assert.equal(client.chain.consensusMainContract.address, "0x0112Bf6e83497965A5fdD6Dad1E447a6E004271D");
+  assert.equal(client.chain.id, 61999);
+  assert.equal(client.chain.isStudio, true);
+  assert.equal(client.chain.consensusMainContract.address, "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575");
 
-  const edgeFunction = await readFile(
-    join(testDirectory, "..", "supabase", "functions", "irlquest-api", "index.ts"),
-    "utf8",
-  );
+  const [edgeFunction, localVerifier] = await Promise.all([
+    readFile(
+      join(testDirectory, "..", "supabase", "functions", "irlquest-api", "index.ts"),
+      "utf8",
+    ),
+    readFile(join(testDirectory, "..", "server", "verification.mjs"), "utf8"),
+  ]);
   assert.match(edgeFunction, /import\("npm:genlayer-js@1\.1\.8\/chains"\)/);
-  assert.match(edgeFunction, /createClient\(\{ chain: testnetBradbury, endpoint: GENLAYER_RPC_URL, account \}\)/);
+  assert.match(edgeFunction, /const CONTRACT_ADDRESS = "0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4"/);
+  assert.match(edgeFunction, /const GENLAYER_RPC_URL = "https:\/\/studio\.genlayer\.com\/api"/);
+  assert.match(edgeFunction, /createClient\(\{ chain: studionet, endpoint: GENLAYER_RPC_URL, account \}\)/);
+  assert.match(localVerifier, /createClient\(\{ chain: studionet, endpoint: rpcUrl, account \}\)/);
+  assert.match(localVerifier, /leaderOnly: false/);
+  assert.match(localVerifier, /isXpEligibleConsensusReceipt\(receipt\)/);
 });
 
 test("verification persists one relay hash and classifies terminal consensus outcomes", async () => {
@@ -382,7 +390,7 @@ test("hosted live challenges stay gesture-only and position-free", async () => {
   assert.doesNotMatch(challengeBlock, /corner|angle|edge/);
 });
 
-test("numeric and named Bradbury receipt statuses normalize consistently", () => {
+test("numeric and named GenLayer receipt statuses normalize consistently", () => {
   assert.equal(genLayerStatusName({ status: 12 }), "VALIDATORS_TIMEOUT");
   assert.equal(genLayerStatusName({ status: "13" }), "LEADER_TIMEOUT");
   assert.equal(genLayerStatusName({ status_name: "accepted" }), "ACCEPTED");

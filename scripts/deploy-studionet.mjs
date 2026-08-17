@@ -4,18 +4,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { createAccount, createClient } from "genlayer-js";
-import { testnetBradbury } from "genlayer-js/chains";
-import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
+import { studionet } from "genlayer-js/chains";
+import { TransactionStatus } from "genlayer-js/types";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectDir = dirname(scriptDir);
 dotenv.config({ path: join(projectDir, ".env"), override: false, quiet: true });
 dotenv.config({ path: join(projectDir, "..", ".env.local"), override: false, quiet: true });
 
-const EXPECTED_CHAIN_ID = 4221;
-const EXPECTED_RPC_HOST = "rpc-bradbury.genlayer.com";
+const RPC_URL = "https://studio.genlayer.com/api";
+const EXPECTED_CHAIN_ID = 61999;
 const CONTRACT_PATH = join(projectDir, "contracts", "IRLQuestVerifier.py");
-const DEPLOYMENT_PATH = join(projectDir, "deployments", "bradbury.json");
+const DEPLOYMENT_PATH = join(projectDir, "deployments", "studionet.json");
 
 if (existsSync(DEPLOYMENT_PATH) && process.env.IRLQUEST_FORCE_DEPLOY !== "true") {
   const existing = JSON.parse(readFileSync(DEPLOYMENT_PATH, "utf8"));
@@ -33,8 +33,8 @@ function required(name, fallbacks = []) {
   throw new Error(`${name} is required`);
 }
 
-async function rpc(rpcUrl, method, params = []) {
-  const response = await fetch(rpcUrl, {
+async function rpc(method, params = []) {
+  const response = await fetch(RPC_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -56,22 +56,25 @@ function deploymentAddress(receipt) {
 
 function executionSucceeded(receipt) {
   const name = receipt?.txExecutionResultName || receipt?.tx_execution_result_name;
-  if (name) return name === ExecutionResult.FINISHED_WITH_RETURN || name === "FINISHED_WITH_RETURN";
   const numeric = receipt?.txExecutionResult ?? receipt?.tx_execution_result;
-  return numeric === undefined ? false : Number(numeric) === 1;
+  if (name || numeric !== undefined) {
+    return name === "FINISHED_WITH_RETURN" || numeric === 1 || numeric === "1";
+  }
+  const leaderReceipts = receipt?.consensusData?.leaderReceipt
+    || receipt?.consensus_data?.leader_receipt;
+  const leaderReceipt = Array.isArray(leaderReceipts)
+    ? leaderReceipts.find((candidate) => candidate?.mode === "leader")
+    : null;
+  return leaderReceipt?.execution_result === "SUCCESS"
+    && leaderReceipt?.result?.status === "return";
 }
 
-const rpcUrl = required("GENLAYER_RPC_URL");
 const privateKey = required("GENLAYER_RELAYER_PRIVATE_KEY", ["GENLAYER_RESOLVER_PRIVATE_KEY"]);
 const configuredAddress = required("GENLAYER_RELAYER_ADDRESS", [
   "GENLAYER_RESOLVER_ADDRESS",
   "GENLAYER_ADMIN_ADDRESS",
 ]);
-const rpcHost = new URL(rpcUrl).hostname.toLowerCase();
-if (rpcHost !== EXPECTED_RPC_HOST) {
-  throw new Error(`Refusing deployment through ${rpcHost}; expected ${EXPECTED_RPC_HOST}`);
-}
-const actualChainId = Number(BigInt(await rpc(rpcUrl, "eth_chainId")));
+const actualChainId = Number(BigInt(await rpc("eth_chainId")));
 if (actualChainId !== EXPECTED_CHAIN_ID) {
   throw new Error(`Refusing deployment on chain ${actualChainId}; expected ${EXPECTED_CHAIN_ID}`);
 }
@@ -80,17 +83,15 @@ const account = createAccount(privateKey);
 if (account.address.toLowerCase() !== configuredAddress.toLowerCase()) {
   throw new Error("The workspace private key does not match its configured relayer address");
 }
-const balanceWei = BigInt(await rpc(rpcUrl, "eth_getBalance", [account.address, "latest"]));
-if (balanceWei === 0n) throw new Error("The configured Bradbury relayer has no GEN");
 
 const source = readFileSync(CONTRACT_PATH, "utf8");
 if (!source.startsWith('# { "Depends": "py-genlayer:')) {
   throw new Error("The verifier contract is missing its pinned GenVM runner header");
 }
 const sourceSha256 = createHash("sha256").update(source, "utf8").digest("hex");
-const client = createClient({ chain: testnetBradbury, endpoint: rpcUrl, account });
+const client = createClient({ chain: studionet, endpoint: RPC_URL, account });
 
-console.log(`Deploying IRLQuestVerifier to Bradbury from ${account.address}...`);
+console.log(`Deploying IRLQuestVerifier to Studionet from ${account.address}...`);
 console.log(`Source SHA-256: ${sourceSha256}`);
 const deploymentTransaction = await client.deployContract({
   account,
@@ -156,7 +157,7 @@ if (Number(resultCount) !== 0) throw new Error("A fresh verifier must contain ze
 
 const result = {
   schema: "irlquest/deployment/v1",
-  network: "testnet-bradbury",
+  network: "studionet",
   chainId: actualChainId,
   status: "ACCEPTED",
   contractAddress,
@@ -168,8 +169,8 @@ const result = {
   deployedSourceSha256,
   sourceByteForByteMatch: true,
   initialResultCount: Number(resultCount),
-  explorerContract: `https://explorer-bradbury.genlayer.com/address/${contractAddress}`,
-  explorerDeploymentTransaction: `https://explorer-bradbury.genlayer.com/tx/${deploymentTransaction}`,
+  explorerContract: `https://explorer-studio.genlayer.com/address/${contractAddress}`,
+  explorerDeploymentTransaction: `https://explorer-studio.genlayer.com/tx/${deploymentTransaction}`,
   verifiedAt: new Date().toISOString(),
 };
 console.log("IRLQUEST_DEPLOYMENT_RESULT=" + JSON.stringify(result));

@@ -5,6 +5,40 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function isXpEligibleConsensusReceipt(receipt) {
+  const status = String(receipt?.statusName || receipt?.status_name || "").toUpperCase();
+  if (status !== "ACCEPTED" && status !== "FINALIZED") return false;
+  const txData = receipt?.txDataDecoded || receipt?.tx_data_decoded;
+  const leaderOnly = txData?.leaderOnly
+    ?? txData?.leader_only
+    ?? receipt?.leaderOnly
+    ?? receipt?.leader_only;
+  if (leaderOnly !== false) return false;
+
+  const topLevelExecution = receipt?.txExecutionResultName || receipt?.tx_execution_result_name;
+  const topLevelExecutionCode = receipt?.txExecutionResult ?? receipt?.tx_execution_result;
+  if (topLevelExecution || topLevelExecutionCode !== undefined) {
+    if (topLevelExecution !== "FINISHED_WITH_RETURN"
+      && topLevelExecutionCode !== 1
+      && topLevelExecutionCode !== "1") return false;
+  } else {
+    const leaderReceipts = receipt?.consensusData?.leaderReceipt
+      || receipt?.consensus_data?.leader_receipt;
+    const leaderReceipt = Array.isArray(leaderReceipts)
+      ? leaderReceipts.find((candidate) => candidate?.mode === "leader")
+      : null;
+    if (leaderReceipt?.execution_result !== "SUCCESS"
+      || leaderReceipt?.result?.status !== "return") return false;
+  }
+
+  const resultName = String(receipt?.resultName || receipt?.result_name || "").toUpperCase();
+  if (resultName !== "AGREE" && resultName !== "MAJORITY_AGREE") return false;
+  const votes = receipt?.lastRound?.validatorVotesName
+    || receipt?.last_round?.validator_votes_name;
+  if (!Array.isArray(votes) || votes.length < 3) return false;
+  return votes.filter((vote) => String(vote).toUpperCase() === "AGREE").length > votes.length / 2;
+}
+
 function localVerdict(submission) {
   return {
     verdict: "PASS",
@@ -34,12 +68,17 @@ async function runGenLayerVerification({
     throw new Error("GenLayer mode requires an HTTPS IRLQUEST_PUBLIC_BASE_URL that validators can reach");
   }
 
-  const [{ createAccount, createClient }, { TransactionStatus }] = await Promise.all([
+  const [{ createAccount, createClient }, { studionet }, { TransactionStatus }] = await Promise.all([
     import("genlayer-js"),
+    import("genlayer-js/chains"),
     import("genlayer-js/types"),
   ]);
   const account = createAccount(privateKey);
-  const client = createClient({ endpoint: rpcUrl, account });
+  const client = createClient({ chain: studionet, endpoint: rpcUrl, account });
+  const rpcChainId = await client.getChainId();
+  if (rpcChainId !== studionet.id) {
+    throw new Error(`GenLayer RPC chain mismatch: expected ${studionet.id}, received ${rpcChainId}`);
+  }
   const userIdHash = createHash("sha256").update(submission.userId).digest("hex");
   const evidenceUrl = createSignedEvidenceUrl({
     publicBaseUrl,
@@ -50,6 +89,7 @@ async function runGenLayerVerification({
   const transactionHash = await client.writeContract({
     address: contractAddress,
     functionName: "verify_submission",
+    leaderOnly: false,
     args: [
       submission.id,
       userIdHash,
@@ -63,19 +103,20 @@ async function runGenLayerVerification({
       submission.evidenceHash,
     ],
   });
-  const receipt = await client.waitForTransactionReceipt({
+  await client.waitForTransactionReceipt({
     hash: transactionHash,
     status: TransactionStatus.ACCEPTED,
     fullTransaction: false,
   });
-  if (String(receipt.txExecutionResultName || "").includes("ERROR")) {
-    throw new Error("The GenLayer verification transaction finished with an execution error");
+  const receipt = await client.getTransaction({ hash: transactionHash });
+  if (!isXpEligibleConsensusReceipt(receipt)) {
+    throw new Error("The GenLayer verification transaction did not reach validator consensus");
   }
   const result = await client.readContract({
     address: contractAddress,
     functionName: "get_result",
     args: [submission.id],
-    stateStatus: "accepted",
+    transactionHashVariant: "latest-nonfinal",
   });
   return {
     transactionHash,

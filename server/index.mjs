@@ -11,7 +11,7 @@ const projectDir = dirname(serverDir);
 dotenv.config({ path: join(projectDir, ".env"), override: false, quiet: true });
 dotenv.config({ path: join(projectDir, "..", ".env.local"), override: false, quiet: true });
 
-const deploymentPath = join(projectDir, "deployments", "bradbury.json");
+const deploymentPath = join(projectDir, "deployments", "studionet.json");
 const deployment = existsSync(deploymentPath)
   ? JSON.parse(readFileSync(deploymentPath, "utf8"))
   : null;

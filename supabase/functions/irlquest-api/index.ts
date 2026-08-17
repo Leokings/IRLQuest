@@ -14,8 +14,8 @@ declare const EdgeRuntime: {
 };
 
 const EVIDENCE_BUCKET = "quest-evidence";
-const CONTRACT_ADDRESS = "0xec9569A41A715D962DD24b3be623792D08a7e709";
-const GENLAYER_RPC_URL = "https://rpc-bradbury.genlayer.com";
+const CONTRACT_ADDRESS = "0x8E91AF6B3Acdae117c3cec5f2D72D1E23D9E6bA4";
+const GENLAYER_RPC_URL = "https://studio.genlayer.com/api";
 const MAXIMUM_IMAGE_BYTES = 8 * 1024 * 1024;
 const GENLAYER_RECEIPT_TIMEOUT_MS = 90_000;
 const GENLAYER_RECEIPT_POLL_MS = 3_000;
@@ -801,15 +801,15 @@ async function genLayerVerdict(admin: any, submission: Record<string, any>, priv
   const assignment = submission.assignment;
   const version = assignment.version;
   const proof = submission.proof;
-  const [{ createAccount, createClient }, { testnetBradbury }] = await Promise.all([
+  const [{ createAccount, createClient }, { studionet }] = await Promise.all([
     import("npm:genlayer-js@1.1.8"),
     import("npm:genlayer-js@1.1.8/chains"),
   ]);
   const account = createAccount(privateKey as `0x${string}`);
-  const client = createClient({ chain: testnetBradbury, endpoint: GENLAYER_RPC_URL, account });
+  const client = createClient({ chain: studionet, endpoint: GENLAYER_RPC_URL, account });
   const rpcChainId = await client.getChainId();
-  if (rpcChainId !== testnetBradbury.id) {
-    throw new Error(`GenLayer RPC chain mismatch: expected ${testnetBradbury.id}, received ${rpcChainId}`);
+  if (rpcChainId !== studionet.id) {
+    throw new Error(`GenLayer RPC chain mismatch: expected ${studionet.id}, received ${rpcChainId}`);
   }
   let transactionHash = typeof submission.transaction_hash === "string"
     ? submission.transaction_hash
