@@ -20,6 +20,7 @@
 
 ## What changed
 
-- Added production verification on Studionet.
-- Required validator consensus before awarding XP.
-- Recorded a successful live proof and production build.
+- Deployed `IRLQuestVerifier` on GenLayer Studionet.
+- Routed production photo proofs through the Studionet contract.
+- Required a finalized validator majority and successful execution before awarding XP.
+- Read the onchain verdict before completing a quest.
