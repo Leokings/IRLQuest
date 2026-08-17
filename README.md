@@ -89,6 +89,6 @@ Gallery fallback is development-only by default. `VITE_ALLOW_GALLERY_FALLBACK=tr
 
 The live deployment uses Google OAuth through Supabase, `https://irlquest.xyz` as its site URL, and the Supabase callback at `https://auovgyyatbxdfynbbfth.supabase.co/auth/v1/callback`. The Bradbury relayer key is stored only as a Supabase Edge Function secret and is never exposed to the browser or committed to this repository.
 
-The current production MVP requests leader-only GenLayer execution for reliable image verification. The contract retains validator-equivalence logic for consensus operation, while the interface avoids claiming independent validator consensus for leader-only results.
+Production submits every proof with `leaderOnly: false`. XP is awarded only after GenLayer reports `ACCEPTED` or `FINALIZED`, the receipt records a majority `AGREE` vote from at least three validators, execution succeeds, and the onchain result is readable. Validator timeout, disagreement, leader-only, local-demo, and unverifiable legacy results remain retryable and cannot create XP; Postgres enforces the same rule as a second boundary.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for boundaries and the production hardening list.

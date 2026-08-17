@@ -5,7 +5,7 @@ import {
   genLayerStatusName,
   isGenLayerTerminalStatus,
   isGenLayerTimeoutStatus,
-  leaderOnlyTimeoutVerdict,
+  isXpEligibleConsensusReceipt,
   waitForGenLayerResult,
 } from "./genlayer-receipt.ts";
 
@@ -643,7 +643,7 @@ async function finalizeSubmission(
     status: "accepted" | "rejected" | "review";
     verdict: Record<string, unknown>;
     transactionHash: string | null;
-    verificationSource: "genlayer_consensus" | "genlayer_leader_fallback" | "local_demo" | "none";
+    verificationSource: "genlayer_consensus" | "none";
     consensusStatus: string | null;
   },
 ) {
@@ -659,29 +659,18 @@ async function finalizeSubmission(
 }
 
 async function localVerdict(admin: any, submission: Record<string, any>) {
-  await new Promise((resolve) => setTimeout(resolve, 900));
-  const title = submission.assignment?.version?.title ?? "quest";
-  const verdict = {
-    verdict: "PASS",
-    questSatisfied: true,
-    challengeSatisfied: true,
-    evidenceClear: true,
-    safe: true,
-    reasonCode: "PASS",
-    summary: `Local demo verification accepted the capture for “${title}”.`,
-    verifier: "local-demo",
-  };
-  await finalizeSubmission(admin, {
-    submissionId: submission.id,
-    status: "accepted",
-    verdict,
-    transactionHash: null,
-    verificationSource: "local_demo",
-    consensusStatus: null,
-  });
+  await finalizeReview(
+    admin,
+    submission.id,
+    "GENLAYER_CONSENSUS_REQUIRED",
+    "Couldn't verify this one.",
+    null,
+    null,
+    "local-demo",
+  );
 }
 
-function reviewVerdict(reasonCode: string, summary: string, verifier = "genlayer-leader") {
+function reviewVerdict(reasonCode: string, summary: string, verifier = "genlayer-network") {
   return {
     verdict: "REVIEW",
     questSatisfied: false,
@@ -701,7 +690,7 @@ async function finalizeReview(
   summary: string,
   transactionHash: string | null,
   consensusStatus: string | null,
-  verifier = "genlayer-leader",
+  verifier = "genlayer-network",
 ) {
   await finalizeSubmission(admin, {
     submissionId,
@@ -812,10 +801,9 @@ async function genLayerVerdict(admin: any, submission: Record<string, any>, priv
   const assignment = submission.assignment;
   const version = assignment.version;
   const proof = submission.proof;
-  const [{ abi, createAccount, createClient }, { testnetBradbury }, { fromHex, fromRlp }] = await Promise.all([
+  const [{ createAccount, createClient }, { testnetBradbury }] = await Promise.all([
     import("npm:genlayer-js@1.1.8"),
     import("npm:genlayer-js@1.1.8/chains"),
-    import("npm:viem@2.55.16"),
   ]);
   const account = createAccount(privateKey as `0x${string}`);
   const client = createClient({ chain: testnetBradbury, endpoint: GENLAYER_RPC_URL, account });
@@ -835,7 +823,7 @@ async function genLayerVerdict(admin: any, submission: Record<string, any>, priv
     const createdTransactionHash = await client.writeContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       functionName: "verify_submission",
-      leaderOnly: true,
+      leaderOnly: false,
       args: [
         submission.id,
         userIdHash,
@@ -854,24 +842,13 @@ async function genLayerVerdict(admin: any, submission: Record<string, any>, priv
   }
 
   const { receipt, statusName } = await waitForGenLayerReceipt(client, transactionHash);
-  if (statusName !== "ACCEPTED" && statusName !== "FINALIZED") {
-    const completedLeaderVerdict = leaderOnlyTimeoutVerdict(receipt, {
-      fromRlp: (value) => fromRlp(value as `0x${string}`),
-      fromHex: (value) => fromHex(value as `0x${string}`, "bytes"),
-      decodeCalldata: (value) => abi.calldata.decode(value),
-    });
-    if (completedLeaderVerdict) {
-      await finalizeSubmission(admin, {
-        submissionId: submission.id,
-        status: completedLeaderVerdict.verdict === "PASS" ? "accepted" : "rejected",
-        verdict: completedLeaderVerdict,
-        transactionHash,
-        verificationSource: "genlayer_leader_fallback",
-        consensusStatus: statusName,
-      });
-      return;
-    }
-    const outcome = terminalReview(statusName);
+  if (!isXpEligibleConsensusReceipt(receipt)) {
+    const outcome = statusName === "ACCEPTED" || statusName === "FINALIZED"
+      ? {
+        reasonCode: "GENLAYER_CONSENSUS_REQUIRED",
+        summary: "Couldn't verify this one.",
+      }
+      : terminalReview(statusName);
     await finalizeReview(
       admin,
       submission.id,
@@ -879,19 +856,7 @@ async function genLayerVerdict(admin: any, submission: Record<string, any>, priv
       outcome.summary,
       transactionHash,
       statusName,
-      "genlayer-leader",
-    );
-    return;
-  }
-  if (String(receipt.txExecutionResultName || "").includes("ERROR")) {
-    await finalizeReview(
-      admin,
-      submission.id,
-      "GENLAYER_EXECUTION_ERROR",
-      "Couldn't verify this one.",
-      transactionHash,
-      statusName,
-      "genlayer-leader",
+      "genlayer-network",
     );
     return;
   }
@@ -990,7 +955,7 @@ async function processSubmission(admin: any, submissionId: string, userId: strin
         "Couldn't verify this one.",
         transactionHash,
         null,
-        Deno.env.get("GENLAYER_RELAYER_PRIVATE_KEY") ? "genlayer-leader" : "local",
+        Deno.env.get("GENLAYER_RELAYER_PRIVATE_KEY") ? "genlayer-network" : "local",
       );
     } catch (finalizeError) {
       console.error(`[verification-finalize] ${finalizeError instanceof Error ? finalizeError.message : String(finalizeError)}`);

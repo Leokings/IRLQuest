@@ -4,15 +4,13 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createClient } from "genlayer-js";
-import { abi } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
-import { fromHex, fromRlp } from "viem";
 import {
   GenLayerResultPendingError,
   genLayerStatusName,
   isGenLayerTerminalStatus,
   isGenLayerTimeoutStatus,
-  leaderOnlyTimeoutVerdict,
+  isXpEligibleConsensusReceipt,
   waitForGenLayerResult,
 } from "../supabase/functions/irlquest-api/genlayer-receipt.ts";
 
@@ -44,12 +42,12 @@ test("verification persists one relay hash and classifies terminal consensus out
   const waitPosition = edgeFunction.indexOf("waitForGenLayerReceipt(client, transactionHash");
   assert.ok(persistPosition > 0, "the relay hash must be stored immediately");
   assert.ok(waitPosition > persistPosition, "the relay hash must be stored before consensus polling");
-  assert.match(edgeFunction, /leaderOnly: true/);
+  assert.match(edgeFunction, /leaderOnly: false/);
   assert.match(edgeFunction, /client\.getTransaction\(\{ hash: transactionHash \}\)/);
   assert.match(edgeFunction, /GENLAYER_TIMEOUT_GRACE_MS = 55_000/);
-  assert.match(edgeFunction, /statusName !== "ACCEPTED" && statusName !== "FINALIZED"/);
-  assert.match(edgeFunction, /leaderOnlyTimeoutVerdict\(receipt/);
-  assert.match(edgeFunction, /import\("npm:viem@2\.55\.16"\)/);
+  assert.match(edgeFunction, /isXpEligibleConsensusReceipt\(receipt\)/);
+  assert.doesNotMatch(edgeFunction, /leaderOnlyTimeoutVerdict/);
+  assert.doesNotMatch(edgeFunction, /genlayer_leader_fallback/);
   assert.match(edgeFunction, /GENLAYER_VALIDATORS_TIMEOUT/);
   assert.match(edgeFunction, /GENLAYER_UNDETERMINED/);
   assert.match(edgeFunction, /processingSubmissions\.has\(submissionId\)/);
@@ -76,16 +74,28 @@ test("verification persists one relay hash and classifies terminal consensus out
 });
 
 test("submission finalization records its source and remains XP-idempotent", async () => {
-  const migration = await readFile(
-    join(
-      testDirectory,
-      "..",
-      "supabase",
-      "migrations",
-      "20260814143009_verification_reliability_and_simple_quests.sql",
+  const [migration, consensusMigration] = await Promise.all([
+    readFile(
+      join(
+        testDirectory,
+        "..",
+        "supabase",
+        "migrations",
+        "20260814143009_verification_reliability_and_simple_quests.sql",
+      ),
+      "utf8",
     ),
-    "utf8",
-  );
+    readFile(
+      join(
+        testDirectory,
+        "..",
+        "supabase",
+        "migrations",
+        "20260817122818_require_validator_consensus_for_xp.sql",
+      ),
+      "utf8",
+    ),
+  ]);
   const edgeFunction = await readFile(
     join(testDirectory, "..", "supabase", "functions", "irlquest-api", "index.ts"),
     "utf8",
@@ -98,9 +108,13 @@ test("submission finalization records its source and remains XP-idempotent", asy
   assert.match(migration, /for update of s, da/);
   assert.match(migration, /on conflict \(submission_id\) do nothing/);
   assert.match(edgeFunction, /verificationSource: "genlayer_consensus"/);
-  assert.match(edgeFunction, /verificationSource: "genlayer_leader_fallback"/);
+  assert.doesNotMatch(edgeFunction, /verificationSource: "genlayer_leader_fallback"/);
   assert.match(edgeFunction, /verifier: "genlayer-consensus"/);
   assert.match(edgeFunction, /recoverStaleSubmissions\(admin, user\.id\)/);
+  assert.match(consensusMigration, /VALIDATOR_CONSENSUS_REQUIRED_FOR_XP/);
+  assert.match(consensusMigration, /p_verification_source is distinct from 'genlayer_consensus'/);
+  assert.match(consensusMigration, /coalesce\(p_consensus_status, ''\) not in \('ACCEPTED', 'FINALIZED'\)/);
+  assert.match(consensusMigration, /delete from public\.xp_events/);
 });
 
 test("active hosted quests keep simple tasks and proven quest variety", async () => {
@@ -177,7 +191,7 @@ test("active hosted quests keep simple tasks and proven quest variety", async ()
   assert.match(migration, /limit greatest\(0, 3 - v_daily_count\)/);
 });
 
-test("legacy false accepts are corrected without touching genuine onchain passes", async () => {
+test("the legacy correction stays scoped while the consensus migration revokes unproven XP", async () => {
   const migration = await readFile(
     join(
       testDirectory,
@@ -199,12 +213,12 @@ test("legacy false accepts are corrected without touching genuine onchain passes
   ]) {
     assert.match(migration, new RegExp(transactionHash));
   }
-  for (const genuinePassHash of [
+  for (const previouslyPreservedHash of [
     "0x9ced920e563508de67f1d78786be717cad283ccd2328a19b60e14fb4223a0885",
     "0x6d52c32f9ec0177a64e34adca09ca63e6ff909612e2496d6fd5b3062885b8cb2",
     "0x1b3ca93c340aa4066b7308ad7e2e8b8e4fb5b0156fe75d07c79412fdbed04bb5",
   ]) {
-    assert.doesNotMatch(migration, new RegExp(genuinePassHash));
+    assert.doesNotMatch(migration, new RegExp(previouslyPreservedHash));
   }
 
   assert.doesNotMatch(migration, /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
@@ -379,38 +393,37 @@ test("numeric and named Bradbury receipt statuses normalize consistently", () =>
   assert.equal(isGenLayerTimeoutStatus("ACCEPTED"), false);
 });
 
-test("a completed leader-only result survives Bradbury's validator timeout", () => {
-  const eqBlocksOutputs = "0xf868b85f0036136368616c6c656e67655f736174697366696564080e65766964656e63655f636c656172080f71756573745f736174697366696564080b726561736f6e5f636f64653c554e434c4541520473616665100776657264696374244641494c86706164646564";
-  const decoder = {
-    fromRlp,
-    fromHex: (value) => fromHex(value, "bytes"),
-    decodeCalldata: (value) => abi.calldata.decode(value),
-  };
-  const receipt = {
-    status: 12,
-    statusName: "VALIDATORS_TIMEOUT",
-    txDataDecoded: { leaderOnly: true },
+test("only a majority validator agreement is eligible for XP", () => {
+  const consensusReceipt = {
+    statusName: "ACCEPTED",
+    txDataDecoded: { leaderOnly: false },
     txExecutionResult: 1,
     txExecutionResultName: "FINISHED_WITH_RETURN",
-    eqBlocksOutputs,
+    resultName: "AGREE",
+    lastRound: {
+      validatorVotesName: ["AGREE", "AGREE", "DISAGREE"],
+    },
   };
 
-  assert.deepEqual(leaderOnlyTimeoutVerdict(receipt, decoder), {
-    verdict: "FAIL",
-    questSatisfied: false,
-    challengeSatisfied: false,
-    evidenceClear: false,
-    safe: true,
-    reasonCode: "UNCLEAR",
-    summary: "Couldn't verify this one.",
-    verifier: "genlayer-leader",
-  });
+  assert.equal(isXpEligibleConsensusReceipt(consensusReceipt), true);
   assert.equal(
-    leaderOnlyTimeoutVerdict({ ...receipt, txDataDecoded: { leaderOnly: false } }, decoder),
-    null,
+    isXpEligibleConsensusReceipt({ ...consensusReceipt, statusName: "VALIDATORS_TIMEOUT" }),
+    false,
   );
   assert.equal(
-    leaderOnlyTimeoutVerdict({ ...receipt, txExecutionResultName: "ERROR", txExecutionResult: 3 }, decoder),
-    null,
+    isXpEligibleConsensusReceipt({ ...consensusReceipt, statusName: "UNDETERMINED" }),
+    false,
+  );
+  assert.equal(
+    isXpEligibleConsensusReceipt({ ...consensusReceipt, txDataDecoded: { leaderOnly: true } }),
+    false,
+  );
+  assert.equal(
+    isXpEligibleConsensusReceipt({
+      ...consensusReceipt,
+      resultName: "DISAGREE",
+      lastRound: { validatorVotesName: ["AGREE", "DISAGREE", "DISAGREE"] },
+    }),
+    false,
   );
 });
