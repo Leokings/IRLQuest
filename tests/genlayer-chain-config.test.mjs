@@ -99,7 +99,7 @@ test("submission finalization records its source and remains XP-idempotent", asy
         "..",
         "supabase",
         "migrations",
-        "20260817122818_require_validator_consensus_for_xp.sql",
+        "20260817123511_require_validator_consensus_for_xp.sql",
       ),
       "utf8",
     ),
@@ -199,42 +199,39 @@ test("active hosted quests keep simple tasks and proven quest variety", async ()
   assert.match(migration, /limit greatest\(0, 3 - v_daily_count\)/);
 });
 
-test("the legacy correction stays scoped while the consensus migration revokes unproven XP", async () => {
-  const migration = await readFile(
-    join(
-      testDirectory,
-      "..",
-      "supabase",
-      "migrations",
-      "20260814164818_correct_legacy_verdicts_and_closeup_state.sql",
+test("production-only identifiers stay redacted while the consensus migration revokes unproven XP", async () => {
+  const [correctionMigration, consensusMigration] = await Promise.all([
+    readFile(
+      join(
+        testDirectory,
+        "..",
+        "supabase",
+        "migrations",
+        "20260814164818_correct_legacy_verdicts_and_closeup_state.sql",
+      ),
+      "utf8",
     ),
-    "utf8",
-  );
+    readFile(
+      join(
+        testDirectory,
+        "..",
+        "supabase",
+        "migrations",
+        "20260817123511_require_validator_consensus_for_xp.sql",
+      ),
+      "utf8",
+    ),
+  ]);
 
-  for (const transactionHash of [
-    "0xbc6329571cf8d6e47c8d85b0b1b29d8cabf84d856718742bada239ac60874d2d",
-    "0xe36393b5d3c60ccf6404e34e0569d52f9e4a3081003c5c4f2c1b2a5a95875efb",
-    "0xaccc872185949ac6b85f15a76efbb0069cae5db2ff4d4e4461d3f3040b1e295a",
-    "0x7e4f1c60f233d80f0a8c95382229985ca94908c80e2c3fe0b7d2f53dc557dcba",
-    "0xfdf213d9aa373d2dab15e6dd37c31375a2b2187321ca2b1635423db56e25750c",
-    "0x8d7f4c7a6322bc480cf000e0c8652f29f1e689d84e9d78cf213b424870bfa89e",
-  ]) {
-    assert.match(migration, new RegExp(transactionHash));
-  }
-  for (const previouslyPreservedHash of [
-    "0x9ced920e563508de67f1d78786be717cad283ccd2328a19b60e14fb4223a0885",
-    "0x6d52c32f9ec0177a64e34adca09ca63e6ff909612e2496d6fd5b3062885b8cb2",
-    "0x1b3ca93c340aa4066b7308ad7e2e8b8e4fb5b0156fe75d07c79412fdbed04bb5",
-  ]) {
-    assert.doesNotMatch(migration, new RegExp(previouslyPreservedHash));
-  }
-
-  assert.doesNotMatch(migration, /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-  assert.match(migration, /set status = 'review'/);
-  assert.match(migration, /verification_source = 'none'/);
-  assert.match(migration, /consensus_status = 'NO_ONCHAIN_RESULT'/);
-  assert.match(migration, /'summary', 'Couldn''t verify this one\.'/);
-  assert.match(migration, /delete from public\.xp_events/);
+  assert.match(correctionMigration, /old transaction identifiers are intentionally not retained/);
+  assert.doesNotMatch(correctionMigration, /0x[0-9a-f]{64}/i);
+  assert.doesNotMatch(correctionMigration, /public\.submissions/);
+  assert.doesNotMatch(correctionMigration, /public\.xp_events/);
+  assert.match(correctionMigration, /where id = 'quest_tiny_wonder'/);
+  assert.match(correctionMigration, /set state = 'testing'/);
+  assert.match(consensusMigration, /VALIDATOR_CONSENSUS_REQUIRED_FOR_XP/);
+  assert.match(consensusMigration, /delete from public\.xp_events/);
+  assert.match(consensusMigration, /p_verification_source is distinct from 'genlayer_consensus'/);
 });
 
 test("quest states, launch safeguards, and social surfaces stay wired together", async () => {
